@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
@@ -33,7 +34,6 @@ final class ChestListScreen extends ContainerScreen {
     private static final int BUTTON_WIDTH = 35;
     private static final float ROW_TEXT_SCALE = 0.8F;
     private static final int ROW_TEXT_RIGHT = ROW_RIGHT - 3;
-    private static final int COUNT_GAP = 5;
     private static final int TOOLTIP_DEFAULT_COLOR = 0xFFFFFF;
 
     private final ChestViewport viewport;
@@ -41,33 +41,38 @@ final class ChestListScreen extends ContainerScreen {
     private int previewModifiers;
     private final ChestViewPreference preference;
     private final String preferenceKey;
-    private boolean listPreferred;
+    private ChestViewMode preferredMode;
     private boolean listView;
     private boolean suppressToggleRelease;
     private Button toggle;
 
     ChestListScreen(ChestMenu menu, Inventory inventory, Component title, ChestViewPreference preference, String preferenceKey) {
         super(menu, inventory, title);
-        viewport = new ChestViewport(menu);
+        viewport = new ChestViewport(menu.getRowCount() * 9);
         this.preference = preference;
         this.preferenceKey = preferenceKey;
-        listPreferred = preference != null && preference.isListPreferred(preferenceKey);
+        preferredMode = preference == null ? ChestViewMode.GRID : preference.getMode(preferenceKey);
     }
 
     @Override
     protected void init() {
         int availableRows = (height - FRAME_HEIGHT) / ROW_HEIGHT;
         boolean listAvailable = availableRows > 0;
-        listView = listAvailable && listPreferred;
-        viewport.setRowCount(Math.clamp(availableRows, 1, MAX_VISIBLE_ROWS));
+        listView = listAvailable && preferredMode != ChestViewMode.GRID;
+        viewport.setRowLimit(Math.clamp(availableRows, 1, MAX_VISIBLE_ROWS));
+        boolean compact = listView && preferredMode == ChestViewMode.COMPACT;
+        viewport.refresh(slot -> !compact || menu.getSlot(slot).hasItem());
         imageHeight = FRAME_HEIGHT + (listView ? listHeight() : gridHeight());
         inventoryLabelY = imageHeight - 94;
         super.init();
         toggle = addRenderableWidget(Button.builder(
-                        Component.translatable(listView ? "chestlistview.view.grid" : "chestlistview.view.list"),
+                        Component.translatable("chestlistview.view." + preferredMode.next().id),
                         button -> toggleView())
                 .bounds(leftPos + imageWidth - BUTTON_WIDTH - 6, topPos + 3, BUTTON_WIDTH, 13)
                 .build());
+        if (preferredMode.next() == ChestViewMode.COMPACT) {
+            toggle.setTooltip(Tooltip.create(Component.translatable("chestlistview.view.compact_hint")));
+        }
         toggle.active = listAvailable;
     }
 
@@ -75,9 +80,9 @@ final class ChestListScreen extends ContainerScreen {
         if (isQuickCrafting) {
             return;
         }
-        listPreferred = !listView;
+        preferredMode = preferredMode.next();
         if (preference != null) {
-            preference.setListPreferred(preferenceKey, listPreferred);
+            preference.setMode(preferenceKey, preferredMode);
         }
         hoveredSlot = null;
         rebuildWidgets();
@@ -85,7 +90,7 @@ final class ChestListScreen extends ContainerScreen {
     }
 
     private int listHeight() {
-        return viewport.rowCount() * ROW_HEIGHT;
+        return viewport.rowLimit() * ROW_HEIGHT;
     }
 
     private int gridHeight() {
@@ -98,6 +103,19 @@ final class ChestListScreen extends ContainerScreen {
 
     private int rowY(int row) {
         return HEADER_HEIGHT + row * ROW_HEIGHT;
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (listView && preferredMode == ChestViewMode.COMPACT && !isQuickCrafting) {
+            long window = minecraft.getWindow().getWindow();
+            // Keep the displayed slot mapping stable between press and release.
+            if (GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_RELEASE
+                    && GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_RELEASE) {
+                viewport.refresh(slot -> menu.getSlot(slot).hasItem());
+            }
+        }
+        super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     @Override
@@ -148,10 +166,13 @@ final class ChestListScreen extends ContainerScreen {
             graphics.fill(leftPos + ICON_X - 1, y + 3, leftPos + ICON_X + 17, y + 21, 0xFF8B8B8B);
         }
 
+        if (viewport.maxOffset() == 0) {
+            return;
+        }
         int trackX = leftPos + ROW_RIGHT + 3;
         int trackY = topPos + HEADER_HEIGHT;
-        int thumbHeight = Math.max(8, listHeight() * viewport.rowCount() / viewport.slotCount());
-        int thumbY = trackY + (listHeight() - thumbHeight) * viewport.firstSlot() / viewport.maxOffset();
+        int thumbHeight = Math.max(8, listHeight() * viewport.rowCount() / viewport.entryCount());
+        int thumbY = trackY + (listHeight() - thumbHeight) * viewport.firstEntry() / viewport.maxOffset();
         graphics.fill(trackX, trackY, trackX + 6, trackY + listHeight(), 0xFF8B8B8B);
         graphics.fill(trackX + 1, thumbY, trackX + 5, thumbY + thumbHeight, 0xFFE2E2E2);
     }
@@ -164,7 +185,7 @@ final class ChestListScreen extends ContainerScreen {
         }
 
         int row = viewport.visibleRow(slot.index);
-        if (viewport.contains(slot) && row < 0) {
+        if (viewport.contains(slot.index) && row < 0) {
             return;
         }
 
@@ -180,7 +201,7 @@ final class ChestListScreen extends ContainerScreen {
     protected void renderSlotHighlight(GuiGraphics graphics, Slot slot, int mouseX, int mouseY, float partialTick) {
         if (!listView) {
             super.renderSlotHighlight(graphics, slot, mouseX, mouseY, partialTick);
-        } else if (!viewport.contains(slot) && slot.isHighlightable()) {
+        } else if (!viewport.contains(slot.index) && slot.isHighlightable()) {
             renderSlotHighlight(graphics, slot.x, slot.y + inventoryOffset(), 0, getSlotColor(slot.index));
         }
     }
@@ -193,8 +214,9 @@ final class ChestListScreen extends ContainerScreen {
         }
         int titleRight = toggle.getX() - leftPos - 4;
         if (listView) {
-            Component range = Component.translatable("chestlistview.view.slot_range",
-                    viewport.firstSlot() + 1, viewport.firstSlot() + viewport.rowCount(), viewport.slotCount());
+            Component range = viewport.entryCount() == 0 ? Component.translatable("chestlistview.view.empty_range")
+                    : Component.translatable("chestlistview.view.slot_range",
+                    viewport.firstEntry() + 1, viewport.firstEntry() + viewport.rowCount(), viewport.entryCount());
             float rangeX = titleRight - font.width(range) * ROW_TEXT_SCALE;
             var pose = graphics.pose();
             pose.pushPose();
@@ -216,6 +238,12 @@ final class ChestListScreen extends ContainerScreen {
             return;
         }
 
+        if (viewport.entryCount() == 0) {
+            graphics.drawCenteredString(font, Component.translatable("chestlistview.view.empty"),
+                    imageWidth / 2, HEADER_HEIGHT + (listHeight() - font.lineHeight) / 2, 0xFFFFFF);
+            return;
+        }
+
         var player = minecraft.player;
         if (player == null) {
             return;
@@ -227,7 +255,7 @@ final class ChestListScreen extends ContainerScreen {
             previewModifiers = modifiers;
         }
         for (int row = 0; row < viewport.rowCount(); row++) {
-            Slot slot = viewport.slotAt(row);
+            Slot slot = menu.getSlot(viewport.slotAt(row));
             var stack = slot.getItem();
             if (stack.isEmpty()) {
                 continue;
@@ -246,18 +274,12 @@ final class ChestListScreen extends ContainerScreen {
             pose.scale(ROW_TEXT_SCALE, ROW_TEXT_SCALE, 1);
 
             int textWidth = (int) ((ROW_TEXT_RIGHT - TEXT_X) / ROW_TEXT_SCALE);
-            String count = Integer.toString(stack.getCount());
-            if (stack.getCount() > 1) {
-                graphics.drawString(font, count, textWidth - font.width(count), 0, 0xFFFFFF, false);
-            }
-            int nameWidth = stack.getCount() > 1 ? textWidth - font.width(count) - COUNT_GAP : textWidth;
-            graphics.drawString(font, ellipsize(stack.getHoverName().getString(), nameWidth),
+            graphics.drawString(font, ellipsize(stack.getHoverName().getString(), textWidth),
                     0, 0, 0xFFFFFF, false);
 
             for (int line = 0; line < Math.min(2, details.size()); line++) {
                 Component detail = details.get(line);
-                boolean more = line == 1 && details.size() > 2;
-                if (more || font.width(detail) > textWidth || detail.getString().contains("\n")) {
+                if (font.width(detail) > textWidth || detail.getString().contains("\n")) {
                     String ellipsis = "\u2026";
                     var wrapped = font.split(detail, textWidth - font.width(ellipsis));
                     graphics.drawString(font, wrapped.getFirst(), 0, 9 + line * 9, TOOLTIP_DEFAULT_COLOR, false);
@@ -292,7 +314,7 @@ final class ChestListScreen extends ContainerScreen {
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (listView && scrollY != 0 && mouseX >= leftPos + ROW_LEFT && mouseX < leftPos + imageWidth
                 && mouseY >= topPos + HEADER_HEIGHT && mouseY < topPos + HEADER_HEIGHT + listHeight()) {
-            if (!isQuickCrafting && !suppressToggleRelease) {
+            if (viewport.maxOffset() > 0 && !isQuickCrafting && !suppressToggleRelease) {
                 viewport.scroll(scrollY > 0 ? -1 : 1);
                 updateHoveredSlot(mouseX, mouseY);
             }

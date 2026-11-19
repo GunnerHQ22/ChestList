@@ -1,6 +1,10 @@
 {
   "chestlistview.view.list": "List",
   "chestlistview.view.grid": "Grid",
+  "chestlistview.view.compact": "Hide",
+  "chestlistview.view.compact_hint": "Compact list: hide empty slots",
+  "chestlistview.view.empty": "Container is empty",
+  "chestlistview.view.empty_range": "0 of 0",
   "chestlistview.view.slot_range": "%s\u2013%s of %s",
   "chestlistview.item.durability": "Durability %s/%s"
 }

@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ChestBlock;
@@ -47,7 +48,8 @@ public final class ChestListClient {
         ChestInteraction interaction = pendingInteraction;
         pendingInteraction = null;
         if (event.isCanceled() || !(event.getNewScreen() instanceof ContainerScreen screen)
-                || screen.getClass() != ContainerScreen.class) {
+                || screen.getClass() != ContainerScreen.class
+                || !isStandardChestMenu(screen.getMenu())) {
             return;
         }
 
@@ -55,19 +57,12 @@ public final class ChestListClient {
         if (minecraft.player == null || minecraft.options.touchscreen().get()) {
             return;
         }
-        var type = screen.getMenu().getType();
+        int storageSlots = screen.getMenu().getRowCount() * 9;
         int clickedChestSize = interaction != null && interaction.level() == minecraft.level
                 && System.nanoTime() - interaction.clickedAt() <= OPEN_TIMEOUT_NANOS
                 ? chestSize(interaction.level(), interaction.pos()) : 0;
-        boolean single = type == MenuType.GENERIC_9x3 && screen.getMenu().getRowCount() == 3;
-        boolean doubleChest = type == MenuType.GENERIC_9x6 && screen.getMenu().getRowCount() == 6
-                && clickedChestSize == 54;
-        if (!single && !doubleChest) {
-            return;
-        }
-
         String key = null;
-        if (clickedChestSize == (single ? 27 : 54)) {
+        if (clickedChestSize == storageSlots) {
             key = preferenceKey(minecraft, interaction, screen);
         }
         if (key != null && preferences == null) {
@@ -75,6 +70,22 @@ public final class ChestListClient {
         }
         event.setNewScreen(new ChestListScreen(screen.getMenu(), minecraft.player.getInventory(),
                 screen.getTitle(), key == null ? null : preferences, key));
+    }
+
+    private static boolean isStandardChestMenu(ChestMenu menu) {
+        if (menu.getClass() != ChestMenu.class) {
+            return false;
+        }
+        var type = menu.getType();
+        return switch (menu.getRowCount()) {
+            case 1 -> type == MenuType.GENERIC_9x1;
+            case 2 -> type == MenuType.GENERIC_9x2;
+            case 3 -> type == MenuType.GENERIC_9x3;
+            case 4 -> type == MenuType.GENERIC_9x4;
+            case 5 -> type == MenuType.GENERIC_9x5;
+            case 6 -> type == MenuType.GENERIC_9x6;
+            default -> false;
+        };
     }
 
     private static int chestSize(ClientLevel level, BlockPos pos) {

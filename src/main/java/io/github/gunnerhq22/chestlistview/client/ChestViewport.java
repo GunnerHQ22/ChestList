@@ -1,55 +1,71 @@
 package io.github.gunnerhq22.chestlistview.client;
 
-import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.Slot;
+import java.util.Arrays;
+import java.util.function.IntPredicate;
 
-/** Maps between viewport rows and the original chest menu slots. */
+/** Maps displayed entries to their original menu slots in physical slot order. */
 final class ChestViewport {
-    private final ChestMenu menu;
-    private final int chestSlots;
-    private int firstSlot;
-    private int rowCount = 7;
+    private final int[] displayedSlots;
+    private int entryCount;
+    private int firstEntry;
+    private int rowLimit = 7;
 
-    ChestViewport(ChestMenu menu) {
-        this.menu = menu;
-        this.chestSlots = menu.getRowCount() * 9;
+    ChestViewport(int slotCount) {
+        displayedSlots = new int[slotCount];
+        refresh(slot -> true);
     }
 
-    boolean contains(Slot slot) {
-        return slot.index < chestSlots;
+    void refresh(IntPredicate shouldDisplay) {
+        int anchor = entryCount == 0 ? 0 : displayedSlots[firstEntry];
+        entryCount = 0;
+        for (int slot = 0; slot < displayedSlots.length; slot++) {
+            if (shouldDisplay.test(slot)) {
+                displayedSlots[entryCount++] = slot;
+            }
+        }
+        int entry = Arrays.binarySearch(displayedSlots, 0, entryCount, anchor);
+        firstEntry = Math.min(entry >= 0 ? entry : -entry - 1, maxOffset());
     }
 
-    Slot slotAt(int row) {
-        return menu.getSlot(firstSlot + row);
+    boolean contains(int slotId) {
+        return slotId < displayedSlots.length;
+    }
+
+    int slotAt(int row) {
+        return displayedSlots[firstEntry + row];
     }
 
     int visibleRow(int slotId) {
-        int row = slotId - firstSlot;
-        return slotId < chestSlots && row >= 0 && row < rowCount ? row : -1;
+        int entry = Arrays.binarySearch(displayedSlots, firstEntry, firstEntry + rowCount(), slotId);
+        return entry >= 0 ? entry - firstEntry : -1;
     }
 
-    void setRowCount(int rows) {
-        rowCount = rows;
+    void setRowLimit(int rows) {
+        rowLimit = rows;
         scroll(0);
     }
 
     void scroll(int delta) {
-        firstSlot = Math.clamp(firstSlot + delta, 0, maxOffset());
+        firstEntry = Math.clamp(firstEntry + delta, 0, maxOffset());
+    }
+
+    int rowLimit() {
+        return rowLimit;
     }
 
     int rowCount() {
-        return rowCount;
+        return Math.min(rowLimit, entryCount);
     }
 
-    int firstSlot() {
-        return firstSlot;
+    int firstEntry() {
+        return firstEntry;
     }
 
-    int slotCount() {
-        return chestSlots;
+    int entryCount() {
+        return entryCount;
     }
 
     int maxOffset() {
-        return chestSlots - rowCount;
+        return Math.max(0, entryCount - rowLimit);
     }
 }

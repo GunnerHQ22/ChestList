@@ -28,3 +28,7 @@ tasks.named('processResources') {
         expand(modVersion: project.version)
     }
 }
+
+tasks.named('jar') {
+    from('LICENSE')
+}
