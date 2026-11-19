@@ -1,0 +1,6 @@
+{
+  "chestlistview.view.list": "List",
+  "chestlistview.view.grid": "Grid",
+  "chestlistview.view.slot_range": "%s\u2013%s of %s",
+  "chestlistview.item.durability": "Durability %s/%s"
+}

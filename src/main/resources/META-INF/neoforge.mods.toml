@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="chestlistview"
+version="${modVersion}"
+displayName="Chest List View"
+authors="GunnerHQ22"
+description="Switch vanilla single and double chests between their grid and a scrollable item list."
+
+[[dependencies.chestlistview]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.200,21.2)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.chestlistview]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="CLIENT"
