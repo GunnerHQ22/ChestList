@@ -1,6 +1,6 @@
 # Chest List View
 
-A client-side Minecraft Java 1.21.1 mod for NeoForge by **GunnerHQ22**. The current display name is *Chest List View* and the mod ID is `chestlistview`. Suggested release name: **Chest Slot List**.
+A client-side Minecraft Java 1.21.1 mod for NeoForge by **GunnerHQ22**.
 
 ## Build and launch
 
