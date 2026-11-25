@@ -269,13 +269,21 @@ final class ChestListScreen extends ContainerScreen {
         int trackY = topPos + HEADER_HEIGHT;
         int thumbHeight = thumbHeight();
         int thumbY = thumbY(thumbHeight);
-        graphics.fill(trackX, trackY, trackX + SCROLLBAR_WIDTH, trackY + listHeight(), 0xFF8B8B8B);
+        boolean hovered = isOverScrollbar(mouseX, mouseY) && !isQuickCrafting;
+        graphics.fill(trackX, trackY, trackX + SCROLLBAR_WIDTH, trackY + listHeight(),
+                hovered || draggingScrollbar ? 0xFFA5A5A5 : 0xFF8B8B8B);
         graphics.fill(trackX + 1, thumbY, trackX + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight,
-                draggingScrollbar ? 0xFFFFFFFF : 0xFFE2E2E2);
+                hovered || draggingScrollbar ? 0xFFFFFFFF : 0xFFE2E2E2);
     }
 
     private int scrollbarX() {
         return leftPos + ROW_RIGHT + 3;
+    }
+
+    private boolean isOverScrollbar(double mouseX, double mouseY) {
+        return listView && viewport.maxOffset() > 0
+                && mouseX >= leftPos + ROW_RIGHT && mouseX < leftPos + imageWidth
+                && mouseY >= topPos + HEADER_HEIGHT && mouseY < topPos + HEADER_HEIGHT + listHeight();
     }
 
     private int thumbHeight() {
@@ -459,9 +467,7 @@ final class ChestListScreen extends ContainerScreen {
                 }
                 return true;
             }
-            if (listView && viewport.maxOffset() > 0 && mouseX >= scrollbarX()
-                    && mouseX < scrollbarX() + SCROLLBAR_WIDTH && mouseY >= topPos + HEADER_HEIGHT
-                    && mouseY < topPos + HEADER_HEIGHT + listHeight()) {
+            if (isOverScrollbar(mouseX, mouseY)) {
                 if (!isQuickCrafting) {
                     int thumbHeight = thumbHeight();
                     int thumbY = thumbY(thumbHeight);
