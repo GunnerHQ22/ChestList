@@ -1,10 +1,15 @@
 {
   "chestlistview.view.list": "List",
   "chestlistview.view.grid": "Grid",
-  "chestlistview.view.compact": "Hide",
-  "chestlistview.view.compact_hint": "Compact list: hide empty slots",
+  "chestlistview.view.compact": "Hide empty slots",
   "chestlistview.view.empty": "Container is empty",
   "chestlistview.view.empty_range": "0 of 0",
-  "chestlistview.view.slot_range": "%s\u2013%s of %s",
-  "chestlistview.item.durability": "Durability %s/%s"
+  "chestlistview.view.slot_range": "%s–%s of %s",
+  "chestlistview.item.durability": "Durability %s/%s",
+  "chestlistview.control.grid": "G",
+  "chestlistview.control.list": "L",
+  "chestlistview.control.compact": "H",
+  "chestlistview.control.search": "S",
+  "chestlistview.view.search": "Search",
+  "chestlistview.view.no_results": "No matching items"
 }

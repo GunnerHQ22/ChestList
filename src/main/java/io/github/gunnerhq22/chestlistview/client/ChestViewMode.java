@@ -9,14 +9,6 @@ enum ChestViewMode {
         this.id = id;
     }
 
-    ChestViewMode next() {
-        return switch (this) {
-            case GRID -> LIST;
-            case LIST -> COMPACT;
-            case COMPACT -> GRID;
-        };
-    }
-
     static ChestViewMode fromId(String id) {
         if (LIST.id.equals(id)) {
             return LIST;
