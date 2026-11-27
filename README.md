@@ -1,49 +1,38 @@
 # Chest List View
 
-A client-side Minecraft Java 1.21.1 mod for NeoForge by **GunnerHQ22**.
+Chest List View is a client-side mod for **Minecraft Java Edition 1.21.1** on **NeoForge**. It adds a scrollable list to chests, barrels, and compatible modded storage so you can read enchantments, potion effects, durability, and other item details at a glance.
 
-# Chest List View
+## Chest controls
 
-Chest List View is a client-side mod for Minecraft Java Edition 1.21.1 and NeoForge. It adds a scrollable list view to vanilla chests and compatible storage containers so you can read item names, enchantments, and other useful details without hovering over every stack.
+| Button | What it does |
+| --- | --- |
+| **G** | Return to the standard inventory grid. |
+| **L** | List every storage slot, including empty slots. |
+| **H** | Switch to Compact view and hide empty slots. |
+| **S** | Search the open container by item name, registry ID, mod name, tooltip text, or durability. Search is case-insensitive and every typed word must match. |
+| **\*** | Open List settings. |
 
-## Features
+Scroll with the mouse wheel, drag the scrollbar, or click its track. The header shows the visible range, such as `16-22 of 54`. Each row uses the original inventory slot, so shift-clicking, hotbar swaps, double-click collection, and drag distribution work through Minecraft's normal inventory controls. Use Grid or the full List to place items into empty slots.
 
-- **Grid, List, and Compact views** - Click **G** for the standard grid, **L** to list every slot, or **H** to hide empty slots. The buttons stay in a fixed position to the left of the chest, or above it on narrow screens.
-- **Single and double chests** — Browse all 27 or 54 slots. The header shows your current position, such as `16–22 of 54`.
-- **Item details at a glance** — Rows show item icons, stack counts, and useful details, with optional item names. The preview can display enchantments, potion effects, durability, equipment stats, and information supplied by other mods, such as storage capacity.
-- **Readable previews** — The list retains tooltip colors and filters common keyboard hints. Hover over an item to see its full tooltip.
-- **Saved views** - The mod remembers Grid, List, or Compact for recognizable stationary storage, including compatible modded chests and barrels, across game restarts. Both halves of a recognized double chest share one preference. The client periodically clears preferences for missing or replaced containers in loaded chunks. Unseen containers start in Grid.
-- **Normal inventory controls** — Use Grid or the full List to place items into empty slots. Clicking, shift-clicking, hotbar swaps, double-click collection, and drag distribution use Minecraft's inventory handling.
+## List settings
 
-## Controls
+- **Visible rows** can be set from 4 to 10. Smaller windows or higher GUI scales can show fewer.
+- **Text size** has five presets relative to Default. Choose **−25%**, **−10%**, **Default**, **+10%**, or **+20%**. Taller rows and smaller text can fit more detail lines.
+- **Item details** can be toggled independently for enchantments, durability, potion effects, attributes, storage and status, and other tooltip text. The preview keeps tooltip colors and filters common keyboard hints.
+- **Item names** can be hidden to make room for details. A row still shows the item's name if it has no visible details.
 
-- Click **\*** to open List settings. Choose 4-10 rows and toggle item names, enchantments, durability, potion effects, attributes, storage and status, and other tooltip text. Short windows may show fewer rows or spread the settings across pages. More rows leave less space for details. With **Names: Off**, items use that line for details when available and show their name when no details are visible. These settings apply across containers and persist between game sessions. Full hover tooltips and search still include hidden details. Modded tooltip lines that the preview cannot identify by type use the Other tooltip text setting.
+List settings apply across containers and persist between game sessions. Full hover tooltips and search still use item details hidden from the list preview.
 
-- Drag the scrollbar or click its track to jump through the list. The mouse wheel still scrolls one row at a time.
-- Use **Text size** in List settings to choose **-25%**, **-10%**, **Default**, **+10%**, or **+20%** for item names and details. Smaller text can fit more lines per row. The size is saved between game sessions.
-- Click **S** to search this chest. Search terms are case-insensitive and all words must match somewhere in the item name, ID, mod name, tooltip, or durability information. Click **G** to clear search and use the grid.
+## Saved views and compatibility
+
+Vanilla single and double chests, trapped chests, and barrels are supported. Modded storage can use List View when it opens the standard Minecraft chest screen and menu with one to six rows of nine slots. Containers with custom screens or menus use their own interface.
+
+New containers open in Grid. The mod remembers List or Compact for recognized stationary storage, including compatible modded containers whose block can be matched to the open menu. Both halves of a recognized double chest share a preference. Compatible moving containers can use List View during an opening and return to Grid when reopened.
+
+Saved views are scoped to the world or server, dimension, and container location and type. The client checks saved locations in loaded chunks on entering a world or dimension and then roughly every 30 seconds. It removes the preference if the expected container is missing at the time of the check.
 
 ## Installation
 
-1. Install **NeoForge** for **Minecraft Java Edition 1.21.1**.
-2. Place the Chest List View JAR in your instance's `mods` folder.
-3. Launch Minecraft, open a supported chest, and use the view buttons.
+Use **NeoForge 21.1.200 or later in the 21.1 series** for **Minecraft Java Edition 1.21.1**. Place the Chest List View JAR in your client's `mods` folder. Multiplayer servers require no installation.
 
-Chest List View runs on the client and requires no server-side installation. Compatible modded storage uses the standard Minecraft chest screen and nine-column menu with one to six rows (9-54 slots). A stationary modded container can save its view when the client can match the open menu's title and slot count to the storage block you used. Moving containers and other compatible menus without a recognized block start in Grid on each opening. Storage with a custom screen or menu uses its own interface.
-
-## Build from source
-
-With **Java 21** installed, run the Gradle wrapper from the project directory.
-
-- Windows: `.\gradlew.bat build`
-- Linux or macOS: `./gradlew build`
-
-The built JAR is located in `build/libs/`.
-
-## Project information
-- **Coding** — Codex
-- **Author** — GunnerHQ22
-- **Mod ID** — `chestlistview`
-- **Minecraft** — Java Edition 1.21.1
-- **Mod loader** — NeoForge
-- **License** - [MIT](LICENSE)
+Created by **GunnerHQ22**. Mod ID `chestlistview`. Licensed under [MIT](LICENSE).
