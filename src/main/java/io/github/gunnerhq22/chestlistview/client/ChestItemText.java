@@ -1,5 +1,6 @@
 package io.github.gunnerhq22.chestlistview.client;
 
+import io.github.gunnerhq22.chestlistview.client.ChestListSettings.DetailType;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -24,12 +25,13 @@ final class ChestItemText {
     private static final Pattern SHORTCUT_CHORD = Pattern.compile(
             "(?:hold|press) (?:shift|ctrl|control|alt)(?:\\s*\\+\\s*[a-z0-9])+ (?:for|to) .+");
     private static final Pattern STATE = Pattern.compile(
-            "^(?:capacity|stored|contents|mode|status|configuration|energy|fluid|charge|durability)\\b"
-                    + "|\\b(?:bytes? used|of [\\d.,]+ (?:bytes?|fe|rf|mb))\\b");
+            "^(?:capacity|stored|contents|mode|status|configuration|energy|fluid|charge)\\b"
+                    + "|\\b(?:bytes? used|of [\\d.,]+ (?:bytes?|types?|fe|rf|mb))\\b");
 
     private ChestItemText() {}
 
-    static List<Component> details(ItemStack stack, Item.TooltipContext context, Player player) {
+    static List<Component> details(ItemStack stack, Item.TooltipContext context, Player player,
+            Set<DetailType> hiddenDetails) {
         var tooltip = stack.getTooltipLines(context, player, TooltipFlag.NORMAL);
         if (tooltip.isEmpty()) {
             return List.of();
@@ -56,17 +58,18 @@ final class ChestItemText {
             Component line = tooltip.get(i);
             String text = line.getString().strip();
             if (isPreviewDetail(line, text) && seen.add(text)) {
-                details.add(new Detail(line, priority(line, text, enchantments, effects)));
+                details.add(new Detail(line, detailType(line, text, enchantments, effects)));
             }
         }
-        if (stack.isDamageableItem() && details.stream().noneMatch(detail ->
-                containsKey(detail.line(), key -> key.equals("item.durability")
-                        || key.equals("chestlistview.item.durability")))) {
+        if (!hiddenDetails.contains(DetailType.DURABILITY) && stack.isDamageableItem()
+                && details.stream().noneMatch(detail -> detail.type() == DetailType.DURABILITY)) {
             Component durability = Component.translatable("chestlistview.item.durability",
                     stack.getMaxDamage() - stack.getDamageValue(), stack.getMaxDamage());
-            details.add(new Detail(durability, Priority.STATE));
+            details.add(new Detail(durability, DetailType.DURABILITY));
         }
-        details.sort(Comparator.comparing(Detail::priority));
+        details.removeIf(detail -> hiddenDetails.contains(detail.type()));
+        details.sort(Comparator.comparing(detail -> detail.type() == DetailType.DURABILITY
+                ? DetailType.STATE : detail.type()));
         return details.stream().map(Detail::line).toList();
     }
 
@@ -85,19 +88,25 @@ final class ChestItemText {
                 && !SHORTCUT_CHORD.matcher(normalized).matches();
     }
 
-    private static Priority priority(Component line, String text, Set<String> enchantments, Set<String> effects) {
+    private static DetailType detailType(Component line, String text, Set<String> enchantments, Set<String> effects) {
         if (enchantments.contains(text)) {
-            return Priority.ENCHANTMENT;
+            return DetailType.ENCHANTMENT;
         }
-        if (containsKey(line, key -> effects.contains(key) || key.equals("potion.withDuration")
+        String normalized = text.toLowerCase(Locale.ROOT);
+        if (containsKey(line, key -> key.equals("item.durability") || key.equals("chestlistview.item.durability"))
+                || normalized.equals("durability") || normalized.startsWith("durability ")
+                || normalized.startsWith("durability:")) {
+            return DetailType.DURABILITY;
+        }
+        if (containsKey(line, key -> effects.contains(key) || key.equals("effect.none") || key.equals("potion.withDuration")
                 || key.equals("potion.withAmplifier"))) {
-            return Priority.POTION;
+            return DetailType.POTION;
         }
         if (containsKey(line, key -> key.startsWith("attribute.modifier.")
                 || key.startsWith("neoforge.attribute."))) {
-            return Priority.ATTRIBUTE;
+            return DetailType.ATTRIBUTE;
         }
-        return STATE.matcher(text.toLowerCase(Locale.ROOT)).find() ? Priority.STATE : Priority.OTHER;
+        return STATE.matcher(normalized).find() ? DetailType.STATE : DetailType.OTHER;
     }
 
     private static boolean containsKey(Component line, Predicate<String> matches) {
@@ -123,7 +132,5 @@ final class ChestItemText {
         return line.getSiblings().stream().anyMatch(sibling -> anyComponent(sibling, matches));
     }
 
-    private enum Priority { ENCHANTMENT, STATE, POTION, ATTRIBUTE, OTHER }
-
-    private record Detail(Component line, Priority priority) {}
+    private record Detail(Component line, DetailType type) {}
 }

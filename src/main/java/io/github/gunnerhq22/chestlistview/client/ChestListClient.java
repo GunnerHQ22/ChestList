@@ -6,26 +6,33 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.MenuType;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.ChestBlock;
-import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.EntityHitResult;
 import net.neoforged.bus.api.EventPriority;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 public final class ChestListClient {
     private static final long OPEN_TIMEOUT_NANOS = 2_000_000_000L;
+    private static final int PREFERENCE_CHECK_INTERVAL_TICKS = 30 * 20;
 
     private static ChestViewPreference preferences;
     private static ChestInteraction pendingInteraction;
+    private static ClientLevel checkedLevel;
+    private static int ticksUntilCheck;
 
     private ChestListClient() {}
 
     public static void register() {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, true, ChestListClient::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(ChestListClient::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(ChestListClient::onEntityInteractSpecific);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, true, ChestListClient::onScreenOpening);
+        NeoForge.EVENT_BUS.addListener(ChestListClient::onClientTick);
     }
 
     private static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -39,8 +46,23 @@ public final class ChestListClient {
         }
 
         BlockPos pos = event.getPos();
-        if (chestSize(level, pos) != 0) {
-            pendingInteraction = new ChestInteraction(level, pos.immutable(), System.nanoTime());
+        var state = level.getBlockState(pos);
+        if (StationaryStorage.isCandidate(level, pos, state)) {
+            pendingInteraction = new ChestInteraction(level, pos.immutable(), state.getBlock(), System.nanoTime());
+        }
+    }
+
+    private static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        clearPendingOnEntityInteraction(event);
+    }
+
+    private static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        clearPendingOnEntityInteraction(event);
+    }
+
+    private static void clearPendingOnEntityInteraction(PlayerInteractEvent event) {
+        if (event.getLevel() instanceof ClientLevel && Minecraft.getInstance().player == event.getEntity()) {
+            pendingInteraction = null;
         }
     }
 
@@ -57,16 +79,9 @@ public final class ChestListClient {
         if (minecraft.player == null || minecraft.options.touchscreen().get()) {
             return;
         }
-        int storageSlots = screen.getMenu().getRowCount() * 9;
-        int clickedChestSize = interaction != null && interaction.level() == minecraft.level
-                && System.nanoTime() - interaction.clickedAt() <= OPEN_TIMEOUT_NANOS
-                ? chestSize(interaction.level(), interaction.pos()) : 0;
-        String key = null;
-        if (clickedChestSize == storageSlots) {
-            key = preferenceKey(minecraft, interaction, screen);
-        }
-        if (key != null && preferences == null) {
-            preferences = new ChestViewPreference(minecraft.gameDirectory.toPath());
+        String key = preferenceKey(minecraft, interaction, screen);
+        if (key != null) {
+            preferences(minecraft).migrateChestKey(key);
         }
         event.setNewScreen(new ChestListScreen(screen.getMenu(), minecraft.player.getInventory(),
                 screen.getTitle(), key == null ? null : preferences, key));
@@ -88,38 +103,37 @@ public final class ChestListClient {
         };
     }
 
-    private static int chestSize(ClientLevel level, BlockPos pos) {
-        var state = level.getBlockState(pos);
-        if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST)) {
-            return 0;
+    private static ChestViewPreference preferences(Minecraft minecraft) {
+        if (preferences == null) {
+            preferences = new ChestViewPreference(minecraft.gameDirectory.toPath());
         }
-        return state.getValue(ChestBlock.TYPE) == ChestType.SINGLE ? 27 : 54;
+        return preferences;
     }
 
     private static String preferenceKey(Minecraft minecraft, ChestInteraction interaction, ContainerScreen screen) {
-        ClientLevel level = interaction.level();
-        BlockPos pos = interaction.pos();
-        var state = level.getBlockState(pos);
-        ChestType type = state.getValue(ChestBlock.TYPE);
-        String defaultTitle = type == ChestType.SINGLE ? "container.chest" : "container.chestDouble";
-        if (!screen.getTitle().equals(net.minecraft.network.chat.Component.translatable(defaultTitle))) {
-            // A custom title can belong to a server GUI, so leave its preference on the open screen.
+        if (interaction == null || interaction.level() != minecraft.level
+                || System.nanoTime() - interaction.clickedAt() > OPEN_TIMEOUT_NANOS
+                || minecraft.hitResult instanceof EntityHitResult) {
             return null;
         }
-        if (type != ChestType.SINGLE) {
-            BlockPos other = pos.relative(ChestBlock.getConnectedDirection(state));
-            var otherState = level.getBlockState(other);
-            if (!otherState.is(state.getBlock())
-                    || otherState.getValue(ChestBlock.TYPE) != type.getOpposite()
-                    || otherState.getValue(ChestBlock.FACING) != state.getValue(ChestBlock.FACING)
-                    || !other.relative(ChestBlock.getConnectedDirection(otherState)).equals(pos)) {
-                return null;
-            }
-            if (other.compareTo(pos) < 0) {
-                pos = other;
-            }
+        ClientLevel level = interaction.level();
+        BlockState state = level.getBlockState(interaction.pos());
+        if (!state.is(interaction.block())) {
+            return null;
+        }
+        var location = StationaryStorage.resolve(level, interaction.pos(), state,
+                screen.getMenu().getRowCount() * 9, screen.getTitle());
+        if (location == null) {
+            return null;
         }
 
+        BlockPos pos = location.pos();
+        String scope = preferenceScope(minecraft, level);
+        return scope == null ? null : scope + pos.getX() + "," + pos.getY() + "," + pos.getZ()
+                + "|" + location.type();
+    }
+
+    private static String preferenceScope(Minecraft minecraft, ClientLevel level) {
         String scope;
         if (minecraft.getSingleplayerServer() != null) {
             var saves = minecraft.gameDirectory.toPath().toAbsolutePath().normalize();
@@ -131,8 +145,25 @@ public final class ChestListClient {
         } else {
             return null;
         }
-        return scope + "|" + level.dimension().location() + "|" + pos.getX() + "," + pos.getY() + "," + pos.getZ();
+        return scope + "|" + level.dimension().location() + "|";
     }
 
-    private record ChestInteraction(ClientLevel level, BlockPos pos, long clickedAt) {}
+    private static void onClientTick(ClientTickEvent.Post event) {
+        var minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level != checkedLevel) {
+            checkedLevel = level;
+            ticksUntilCheck = 0;
+        }
+        if (level == null || ticksUntilCheck-- > 0) {
+            return;
+        }
+        ticksUntilCheck = PREFERENCE_CHECK_INTERVAL_TICKS - 1;
+        String scope = preferenceScope(minecraft, level);
+        if (scope != null) {
+            preferences(minecraft).prune(scope, (pos, type) -> StationaryStorage.keepPreference(level, pos, type));
+        }
+    }
+
+    private record ChestInteraction(ClientLevel level, BlockPos pos, Block block, long clickedAt) {}
 }
